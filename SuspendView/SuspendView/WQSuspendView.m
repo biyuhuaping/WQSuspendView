@@ -8,13 +8,29 @@
 
 #import "WQSuspendView.h"
 
-@interface WQSuspendView  (){
-    CGPoint _originalPoint;//之前的位置
-}
+#define kScreenWidth    CGRectGetWidth([UIScreen mainScreen].bounds)
+#define kScreenHeight   CGRectGetHeight([UIScreen mainScreen].bounds)
+#define IS_IPhoneXLater (kScreenWidth >=375.0f && kScreenHeight >=812.0f)
 
-@property (nonatomic, assign) WQSuspendViewType type;
+/*状态栏高度*/
+#define kStatusBarH (IS_IPhoneXLater ? 44 : 20)
 
-@end
+/*状态栏和导航栏总高度*/
+#define kNavBarH (IS_IPhoneXLater ? 88 : 64)
+
+/*TabBar高度*/
+#define kTabBarH  (IS_IPhoneXLater ? 83 : 49)
+
+/*底部安全区域远离高度*/
+#define kSpaceBottomMarea_H (IS_IPhoneXLater ? 34 : 0)
+
+/*导航条和Tabbar总高度*/
+#define kNavAndTabHeight (kStatusBarH + kTabBarH)
+
+
+#define WIDTH CGRectGetWidth(self.frame)
+#define HEIGHT CGRectGetHeight(self.frame)
+#define animateDuration 0.3       //位置改变动画时间
 
 @implementation WQSuspendView
 
@@ -28,59 +44,50 @@ static WQSuspendView *_suspendView;
     return self;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame showType:(WQSuspendViewType)type tapBlock:(void (^)(void))tapBlock{
-    self = [super initWithFrame:frame];
-    if (self) {
-        _type = type;
-        _tapBlock = tapBlock;
-        [self configurationUI];
-    }
-    return self;
-}
-
 - (void)configurationUI{
     //自定义
     self.backgroundColor = [UIColor redColor];
+    
     //图片~文字等...
+    UIImageView *imageView = [[UIImageView alloc]initWithFrame:self.bounds];
+    imageView.image = [UIImage imageNamed:@"拜访"];
+    [self addSubview:imageView];
     
     //点击手势
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tap:)];
     [self addGestureRecognizer:tap];
     //滑动手势
-    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)];
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(locationChange:)];
     [self addGestureRecognizer:pan];
+}
+
++ (void)showWithTapBlock:(void (^)(void))tapBlock{
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _suspendView = [[WQSuspendView alloc] initWithFrame:CGRectMake(kScreenWidth - 77, kScreenHeight - kTabBarH -100, 77, 77)];
+        _suspendView.tapBlock = tapBlock;
+    });
+    if (!_suspendView.superview) {
+        [[UIApplication sharedApplication].keyWindow addSubview:_suspendView];
+        [[UIApplication sharedApplication].keyWindow bringSubviewToFront:_suspendView];
+    }
+}
+
+//显示
++ (void)show{
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _suspendView = [[WQSuspendView alloc] initWithFrame:CGRectMake(kScreenWidth - 77, kScreenHeight - kTabBarH -100, 77, 77)];
+    });
+    if (!_suspendView.superview) {
+        [[UIApplication sharedApplication].keyWindow addSubview:_suspendView];
+        [[UIApplication sharedApplication].keyWindow bringSubviewToFront:_suspendView];
+    }
 }
 
 //移除
 + (void)remove{
     [_suspendView removeFromSuperview];
-}
-
-//显示
-+ (void)show{
-    [self showWithType:WQSuspendViewTypeNone];
-}
-
-+ (void)showWithType:(WQSuspendViewType)type{
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        _suspendView = [[WQSuspendView alloc] initWithFrame:CGRectMake(0, 200, 50, 50) showType:type tapBlock:nil];
-    });
-    if (!_suspendView.superview) {
-        [[UIApplication sharedApplication].keyWindow addSubview:_suspendView];
-        [[UIApplication sharedApplication].keyWindow bringSubviewToFront:_suspendView];
-    }
-}
-
-+ (void)showWithType:(WQSuspendViewType)type tapBlock:(void (^)(void))tapBlock{
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        _suspendView = [[WQSuspendView alloc] initWithFrame:CGRectMake(0, 200, 50, 50) showType:type tapBlock:tapBlock];
-    });
-    if (!_suspendView.superview) {
-        [[UIApplication sharedApplication].keyWindow addSubview:_suspendView];
-        [[UIApplication sharedApplication].keyWindow bringSubviewToFront:_suspendView];
-    }
 }
 
 //点击事件
@@ -91,104 +98,130 @@ static WQSuspendView *_suspendView;
 }
 
 //滑动事件
-- (void)pan:(UIPanGestureRecognizer *)pan{
+- (void)locationChange:(UIPanGestureRecognizer *)pan{
     //获取当前位置
-    CGPoint currentPosition = [pan locationInView:self];
+    CGPoint panPoint = [pan locationInView:[UIApplication sharedApplication].keyWindow];
     if (pan.state == UIGestureRecognizerStateBegan) {
-        _originalPoint = currentPosition;
+
     }else if(pan.state == UIGestureRecognizerStateChanged){
-        //偏移量(当前坐标 - 起始坐标 = 偏移量)
-        CGFloat offsetX = currentPosition.x - _originalPoint.x;
-        CGFloat offsetY = currentPosition.y - _originalPoint.y;
+        self.center = CGPointMake(panPoint.x, panPoint.y);
         
-        //移动后的按钮中心坐标
-        CGFloat centerX = self.center.x + offsetX;
-        CGFloat centerY = self.center.y + offsetY;
-        self.center = CGPointMake(centerX, centerY);
-        
-        //父试图的宽高
-        CGFloat superViewWidth = self.superview.frame.size.width;
-        CGFloat superViewHeight = self.superview.frame.size.height;
-        CGFloat btnX = self.frame.origin.x;
-        CGFloat btnY = self.frame.origin.y;
-        CGFloat btnW = self.frame.size.width;
-        CGFloat btnH = self.frame.size.height;
-        
+        CGFloat btnMinX = CGRectGetMinX(self.frame);
+        CGFloat btnMinY = CGRectGetMinY(self.frame);
+        CGFloat btnMaxX = CGRectGetMaxX(self.frame);
+        CGFloat btnMaxY = CGRectGetMaxY(self.frame);
+
+        CGFloat centerX = panPoint.x;
+        CGFloat centerY = panPoint.y;
         //x轴左右极限坐标
-        if (btnX > superViewWidth){
-            //按钮右侧越界
-            CGFloat centerX = superViewWidth - btnW/2;
-            self.center = CGPointMake(centerX, centerY);
-        }else if (btnX < 0){
-            //按钮左侧越界
-            CGFloat centerX = btnW * 0.5;
-            self.center = CGPointMake(centerX, centerY);
+        if (btnMinX < 0){
+            //左侧越界
+            centerX = WIDTH/2;
+        }else if (btnMaxX > kScreenWidth){
+            //右侧越界
+            centerX = kScreenWidth - WIDTH/2;
         }
-        
-        //默认都是有导航条的，有导航条的，父试图高度就要被导航条占据，固高度不够
-        CGFloat defaultNaviHeight = 64;
-        CGFloat judgeSuperViewHeight = superViewHeight - defaultNaviHeight;
-        
+
         //y轴上下极限坐标
-        if (btnY <= 0){
-            //按钮顶部越界
-            centerY = btnH * 0.7;
-            self.center = CGPointMake(centerX, centerY);
+        if (btnMinY < kNavBarH){
+            //顶部越界
+            centerY = kNavBarH + HEIGHT/2;
+        }else if (btnMaxY > kScreenHeight - kTabBarH){
+            //底部越界
+            centerY = kScreenHeight - kTabBarH - HEIGHT/2;
         }
-        else if (btnY > judgeSuperViewHeight){
-            //按钮底部越界
-            CGFloat y = superViewHeight - btnH * 0.5;
-            self.center = CGPointMake(btnX, y);
-        }
+        self.center = CGPointMake(centerX, centerY);
     }else if (pan.state == UIGestureRecognizerStateEnded){
-        CGFloat btnWidth = self.frame.size.width;
-        CGFloat btnHeight = self.frame.size.height;
-        CGFloat btnY = self.frame.origin.y;
-        //        CGFloat btnX = self.frame.origin.x;
-        //按钮靠近右侧
-        switch (_type) {
-                
-            case WQSuspendViewTypeNone:{
-                //自动识别贴边
-                if (self.center.x >= self.superview.frame.size.width/2) {
-                    
-                    [UIView animateWithDuration:0.5 animations:^{
-                        //按钮靠右自动吸边
-                        CGFloat btnX = self.superview.frame.size.width - btnWidth;
-                        self.frame = CGRectMake(btnX, btnY, btnWidth, btnHeight);
-                    }];
-                }else{
-                    
-                    [UIView animateWithDuration:0.5 animations:^{
-                        //按钮靠左吸边
-                        CGFloat btnX = 0;
-                        self.frame = CGRectMake(btnX, btnY, btnWidth, btnHeight);
-                    }];
-                }
-                break;
-            }
-            case WQSuspendViewTypeLeft:{
-                [UIView animateWithDuration:0.5 animations:^{
-                    //按钮靠左吸边
-                    CGFloat btnX = 0;
-                    self.frame = CGRectMake(btnX, btnY, btnWidth, btnHeight);
+        if (panPoint.x <= kScreenWidth/2) {//靠左
+            if (panPoint.y <= 40 + HEIGHT/2 && panPoint.x >= 20 + WIDTH/2) {//左上
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(panPoint.x, HEIGHT/2);
                 }];
-                break;
+            }else if (panPoint.y >= kScreenHeight - HEIGHT/2 - 40 && panPoint.x >= 20 +WIDTH/2){//左下
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(panPoint.x, kScreenHeight-HEIGHT/2);
+                }];
+            }else if (panPoint.x < WIDTH/2 + 20 && panPoint.y > kScreenHeight - HEIGHT/2){//左下
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(WIDTH/2, kScreenHeight-HEIGHT/2);
+                }];
+            }else{
+                CGFloat pointy = panPoint.y < HEIGHT/2 ? HEIGHT/2 :panPoint.y;
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(WIDTH/2, pointy);
+                }];
             }
-            case WQSuspendViewTypeRight:{
-                [UIView animateWithDuration:0.5 animations:^{
-                    //按钮靠右自动吸边
-                    CGFloat btnX = self.superview.frame.size.width - btnWidth;
-                    self.frame = CGRectMake(btnX, btnY, btnWidth, btnHeight);
+        }else if (panPoint.x > kScreenWidth/2){//靠右
+            if (panPoint.y <= 40 + HEIGHT/2 && panPoint.x < kScreenWidth - WIDTH/2 - 20) {//右上
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(panPoint.x, HEIGHT/2);
+                }];
+            }else if (panPoint.y >= kScreenHeight - 40 - HEIGHT/2 && panPoint.x < kScreenWidth - WIDTH/2 - 20){//右下
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(panPoint.x, kScreenHeight-HEIGHT/2);
+                }];
+            }else if (panPoint.x > kScreenWidth - WIDTH/2 - 20 && panPoint.y < HEIGHT/2){//右上
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(kScreenWidth-WIDTH/2, HEIGHT/2);
+                }];
+            }else{
+                CGFloat pointy = panPoint.y > kScreenHeight-HEIGHT/2 ? kScreenHeight-HEIGHT/2 :panPoint.y;
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(kScreenWidth-WIDTH/2, pointy);
                 }];
             }
         }
     }
-    
 }
 
+//改变位置
+- (void)locationChange1:(UIPanGestureRecognizer *)panGesture{
+    CGPoint panPoint = [panGesture locationInView:[UIApplication sharedApplication].keyWindow];
+    if (panGesture.state == UIGestureRecognizerStateBegan) {
 
-
-
+    }else if (panGesture.state == UIGestureRecognizerStateChanged) {
+        self.center = CGPointMake(panPoint.x, panPoint.y);
+    }else if (panGesture.state == UIGestureRecognizerStateEnded){
+        if (panPoint.x <= kScreenWidth/2) {//靠左
+//            if (panPoint.y <= 40 + HEIGHT/2 && panPoint.x >= 20 + WIDTH/2) {//左上
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(panPoint.x, HEIGHT/2);
+//                }];
+//            }else if (panPoint.y >= kScreenHeight - HEIGHT/2 - 40 && panPoint.x >= 20 +WIDTH/2){//左下
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(panPoint.x, kScreenHeight-HEIGHT/2);
+//                }];
+//            }else if (panPoint.x < WIDTH/2 + 20 && panPoint.y > kScreenHeight - HEIGHT/2){//左下
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(WIDTH/2, kScreenHeight-HEIGHT/2);
+//                }];
+//            }else{
+                CGFloat pointy = panPoint.y < HEIGHT/2 ? HEIGHT/2 :panPoint.y;
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(WIDTH/2, pointy);
+                }];
+//            }
+        }else if (panPoint.x > kScreenWidth/2){//靠右
+//            if (panPoint.y <= 40 + HEIGHT/2 && panPoint.x < kScreenWidth - WIDTH/2 - 20) {//右上
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(panPoint.x, HEIGHT/2);
+//                }];
+//            }else if (panPoint.y >= kScreenHeight - 40 - HEIGHT/2 && panPoint.x < kScreenWidth - WIDTH/2 - 20){//右下
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(panPoint.x, kScreenHeight-HEIGHT/2);
+//                }];
+//            }else if (panPoint.x > kScreenWidth - WIDTH/2 - 20 && panPoint.y < HEIGHT/2){//右上
+//                [UIView animateWithDuration:animateDuration animations:^{
+//                    self.center = CGPointMake(kScreenWidth-WIDTH/2, HEIGHT/2);
+//                }];
+//            }else{
+                CGFloat pointy = panPoint.y > kScreenHeight-HEIGHT/2 ? kScreenHeight-HEIGHT/2 :panPoint.y;
+                [UIView animateWithDuration:animateDuration animations:^{
+                    self.center = CGPointMake(kScreenWidth-WIDTH/2, pointy);
+                }];
+//            }
+        }
+    }
+}
 
 @end

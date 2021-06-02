@@ -16,23 +16,21 @@
 
 @implementation ViewController
 
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view, typically from a nib.
+    self.view.backgroundColor = [UIColor whiteColor];
+}
+
 - (void)viewWillAppear:(BOOL)animated{
     [super viewWillAppear:animated];
     if (!_type) {
 //        [WQSuspendView show];
 //        [WQSuspendView showWithType:WQSuspendViewTypeLeft];
-        [WQSuspendView showWithType:WQSuspendViewTypeNone tapBlock:^{
+        [WQSuspendView showWithTapBlock:^{
             NSLog(@"点击了");
         }];
     }
-}
-
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    // Do any additional setup after loading the view, typically from a nib.
-    
-    self.view.backgroundColor = [UIColor whiteColor];
-   
 }
 
 //不隐藏
